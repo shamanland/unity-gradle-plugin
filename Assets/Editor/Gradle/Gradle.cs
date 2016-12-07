@@ -3,9 +3,15 @@ using UnityEditor;
 using System.Collections;
 using System.IO;
 
-public class Gradle : MonoBehaviour {
+public class Gradle : ScriptableObject {
 	[MenuItem("Window/Gradle/Resolve")]
 	public static void Refresh() {
+		var androidHome = System.Environment.GetEnvironmentVariable ("ANDROID_HOME");
+		if (androidHome == null) {
+			Debug.LogError ("Environment varialble ANDROID_HOME not defined");
+			return;
+		}
+
 		System.Diagnostics.Process process = new System.Diagnostics.Process();
 		process.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
 		process.StartInfo.WorkingDirectory = Application.dataPath + "/Plugins/Gradle";
@@ -14,12 +20,12 @@ public class Gradle : MonoBehaviour {
 		case System.PlatformID.Unix:
 		case System.PlatformID.MacOSX:
 			process.StartInfo.FileName = "bash";
-			process.StartInfo.Arguments = "gradlew export";
+			process.StartInfo.Arguments = "gradlew export -PAPPLICATION_ID=" + PlayerSettings.bundleIdentifier;
 			break;
 
 		default:
 			process.StartInfo.FileName = "gradlew.bat";
-			process.StartInfo.Arguments = "export";
+			process.StartInfo.Arguments = "export -PAPPLICATION_ID=" + PlayerSettings.bundleIdentifier;
 			break;
 		}
 

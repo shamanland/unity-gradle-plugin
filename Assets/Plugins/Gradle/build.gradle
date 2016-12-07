@@ -22,9 +22,9 @@ configurations {
 }
 
 dependencies {
-    // TODO add your dependencies here, these two lines below may be removed
-    export 'com.google.firebase:firebase-core:10.0.0'
+    // TODO replace lines below by your dependencies
     export 'com.shamanland:xdroid-toaster:0.3.0'
+    // export 'com.google.firebase:firebase-core:10.0.0'
 }
 
 void updateZipEntry(String zipFile, String zipEntry, String newContent) {
