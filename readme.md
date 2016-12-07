@@ -32,6 +32,10 @@ After importing open scene `Example/Example`, you will see the same instruction 
 
 *NOTE*: this example was created and tested on Unity 5.5
 
+## Mac OS
+
+Read [here][1] how to set up environment variables.
+
 ## License
 
 ```
@@ -49,3 +53,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ```
+
+ [1]: http://stackoverflow.com/a/25912736/1891118
+ 
