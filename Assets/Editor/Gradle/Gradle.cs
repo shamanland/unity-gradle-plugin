@@ -4,7 +4,7 @@ using System.Collections;
 using System.IO;
 
 public class Gradle : MonoBehaviour {
-	[MenuItem("Window/Gradle/Resolve 2")]
+	[MenuItem("Window/Gradle/Resolve")]
 	public static void Refresh() {
 		System.Diagnostics.Process process = new System.Diagnostics.Process();
 		process.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;

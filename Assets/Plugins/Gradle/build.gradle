@@ -1,14 +1,20 @@
 repositories {
-	jcenter()
+    jcenter()
     mavenLocal()
 
-	maven {
-		url 'file:/Users/main/Library/Android/sdk/extras/google/m2repository'
-	}
+    def androidHome = System.getenv('ANDROID_HOME');
+    if (androidHome == null) {
+        if (project.hasProperty('ANDROID_HOME')) {
+            androidHome = project.getProperty('ANDROID_HOME')
+        }
+    }
 
-	maven {
-		url 'file:/Users/main/Library/Android/sdk/extras/android/m2repository'
-	}
+    if (androidHome != null) {
+        maven { url "file:$androidHome/extras/android/m2repository" }
+        maven { url "file:$androidHome/extras/google/m2repository" }
+    } else {
+        throw new IllegalStateException('ANDROID_HOME not found')
+    }
 }
 
 configurations {
@@ -16,11 +22,132 @@ configurations {
 }
 
 dependencies {
-    export 'com.shamanland:letscount-core:0.4.7-debug'
+    export 'com.google.firebase:firebase-core:10.0.0'
     export 'com.shamanland:xdroid-toaster:0.3.0'
 }
 
-task export(type: Copy) {
+void updateZipEntry(String zipFile, String zipEntry, String newContent) {
+    updateZipEntry(zipFile, zipEntry, newContent.getBytes('UTF8'))
+}
+
+// http://stackoverflow.com/a/27791815/1891118
+@SuppressWarnings("UnnecessaryQualifiedReference")
+void updateZipEntry(String zipFile, String zipEntry, byte[] newContent) {
+    def zin = new java.util.zip.ZipFile(zipFile)
+    def tmp = file("${zipFile}.${System.nanoTime()}.tmp")
+    tmp.withOutputStream { os ->
+        def zos = new java.util.zip.ZipOutputStream(os)
+        zin.entries().each { entry ->
+            def isReplaced = entry.name == zipEntry
+
+            zos.putNextEntry(isReplaced ? new java.util.zip.ZipEntry(zipEntry) : entry)
+            zos << (isReplaced ? newContent : zin.getInputStream(entry).bytes)
+            zos.closeEntry()
+        }
+
+        if (zin.getEntry(zipEntry) == null) {
+            zos.putNextEntry(new java.util.zip.ZipEntry(zipEntry))
+            zos << newContent
+            zos.closeEntry()
+        }
+
+        zos.close()
+    }
+    zin.close()
+    assert new File(zipFile).delete()
+    tmp.renameTo(zipFile)
+}
+
+@SuppressWarnings("UnnecessaryQualifiedReference")
+String tryModifyManifest(String zipFile, String zipEntry, String appId) {
+    def zin = new java.util.zip.ZipFile(zipFile)
+
+    def input = zin.getInputStream(zin.getEntry(zipEntry))
+    def reader = new BufferedReader(new InputStreamReader(input))
+
+    def hasModifications = false
+    def result = new StringBuilder()
+    def line = null as String
+    while ((line = reader.readLine()) != null) {
+        def modified = line.replaceAll(java.util.regex.Pattern.quote(template()), appId)
+        if (!line.equals(modified)) {
+            hasModifications = true
+        }
+
+        result.append(modified)
+        result.append('\n')
+    }
+
+    reader.close()
+    zin.close()
+
+    if (hasModifications) {
+        return result.toString()
+    }
+
+    return null
+}
+
+String template() {
+    return "\${applicationId}"
+}
+
+task copyDependencies(type: Copy) {
     from configurations.export
     into "$buildDir/../../Android"
 }
+
+task reviseAar() {
+    doFirst {
+        def dir = file("$buildDir/../../Android")
+        def classesJar = 'classes.jar'
+
+        for (def file : dir.listFiles()) {
+            if (file.name.endsWith('.aar')) {
+                def zip = zipTree(file.absolutePath)
+                def classesExists = false
+                def manifests = new ArrayList()
+
+                zip.visit(new FileVisitor() {
+                    @Override
+                    void visitDir(FileVisitDetails dirDetails) {
+                        // none
+                    }
+
+                    @Override
+                    void visitFile(FileVisitDetails fileDetails) {
+                        if (classesJar.equals(fileDetails.path)) {
+                            classesExists = true
+                        }
+
+                        if ('AndroidManifest.xml'.equals(fileDetails.name)) {
+                            manifests.add(fileDetails.path)
+                        }
+                    }
+                })
+
+                if (project.hasProperty('APPLICATION_ID')) {
+                    def appId = project.getProperty('APPLICATION_ID')
+
+                    for (String manifest : manifests) {
+                        // NOTE this approach has bad complexity, but don't care, is most cases
+                        //      there're only one AndroidManifest.xml per aar
+                        def modified = tryModifyManifest(file.absolutePath, manifest, appId)
+                        if (modified != null) {
+                            println("${file.name} : update ${manifest}")
+                            updateZipEntry(file.absolutePath, manifest, modified)
+                        }
+                    }
+                }
+
+                if (!classesExists) {
+                    def content = 'UEsDBAoAAAgIADANT0cAAAAAAgAAAAAAAAAJAAAATUVUQS1JTkYvAwBQSwMEFAAAAAgAVXaHScwPeFxrAAAAeQAAABQAHABNRVRBLUlORi9NQU5JRkVTVC5NRlVUCQADogVIWJMESFh1eAsAAQT1AQAABBQAAAAdzDEOwyAMAMA9r+ADQLsyNms7RerugAOWwCAwQ35f1AfcfYDpwiH6i31QZaee5rHtHUEw6NftVBJpw1kbSdI8ja/FjgQFOAMHO5nk1rFDyKhbnpF4Oxp6usiDrHDFHGp36vij90Jmr2X7AVBLAQIUAwoAAAgIADANT0cAAAAAAgAAAAAAAAAJAAAAAAAAAAAAEADtQQAAAABNRVRBLUlORi9QSwECHgMUAAAACABVdodJzA94XGsAAAB5AAAAFAAYAAAAAAABAAAAgIEpAAAATUVUQS1JTkYvTUFOSUZFU1QuTUZVVAUAA6IFSFh1eAsAAQT1AQAABBQAAABQSwUGAAAAAAIAAgCRAAAA4gAAAAAA'.decodeBase64()
+                    println("${file.name} : append ${classesJar} (${content.length} bytes)")
+                    updateZipEntry(file.absolutePath, classesJar, content)
+                }
+            }
+        }
+    }
+}
+
+task export(dependsOn: ['copyDependencies', 'reviseAar'])
