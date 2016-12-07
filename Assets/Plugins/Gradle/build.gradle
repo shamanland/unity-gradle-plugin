@@ -22,6 +22,7 @@ configurations {
 }
 
 dependencies {
+    // TODO add your dependencies here, these two lines below may be removed
     export 'com.google.firebase:firebase-core:10.0.0'
     export 'com.shamanland:xdroid-toaster:0.3.0'
 }
