@@ -1,0 +1,26 @@
+repositories {
+	jcenter()
+    mavenLocal()
+
+	maven {
+		url 'file:/Users/main/Library/Android/sdk/extras/google/m2repository'
+	}
+
+	maven {
+		url 'file:/Users/main/Library/Android/sdk/extras/android/m2repository'
+	}
+}
+
+configurations {
+    export
+}
+
+dependencies {
+    export 'com.shamanland:letscount-core:0.4.7-debug'
+    export 'com.shamanland:xdroid-toaster:0.3.0'
+}
+
+task export(type: Copy) {
+    from configurations.export
+    into "$buildDir/../../Android"
+}
