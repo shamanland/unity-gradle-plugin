@@ -2,19 +2,18 @@
 using UnityEditor;
 using System.Collections;
 using System.IO;
+using System.Text;
 
 public class Gradle : ScriptableObject {
 	[MenuItem("Window/Gradle/Resolve")]
 	public static void Refresh() {
-		var androidHome = System.Environment.GetEnvironmentVariable ("ANDROID_HOME");
-		if (androidHome == null) {
-			Debug.LogError ("Environment varialble ANDROID_HOME not defined");
-			return;
-		}
-
 		System.Diagnostics.Process process = new System.Diagnostics.Process();
 		process.StartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
 		process.StartInfo.WorkingDirectory = Application.dataPath + "/Plugins/Gradle";
+		process.StartInfo.RedirectStandardOutput = true;
+		process.StartInfo.RedirectStandardError = true;
+		process.StartInfo.UseShellExecute = false;
+		process.StartInfo.CreateNoWindow = true;
 
 		switch (System.Environment.OSVersion.Platform) {
 		case System.PlatformID.Unix:
@@ -30,13 +29,29 @@ public class Gradle : ScriptableObject {
 		}
 
 		if (process.Start ()) {
+			var stdout = new StringBuilder ();
+			var stderr = new StringBuilder ();
+
+			while (!process.StandardOutput.EndOfStream) {
+				string line = process.StandardOutput.ReadLine();
+				stdout.AppendLine (line);
+			}
+
+			while (!process.StandardError.EndOfStream) {
+				string line = process.StandardError.ReadLine();
+				stderr.AppendLine (line);
+			}
+
 			process.WaitForExit ();
 
 			if (process.ExitCode == 0) {
-				Debug.Log ("Gradle finished successfully");
+				stdout.Insert (0, "Gradle returns " + process.ExitCode + "\n");
+				Debug.Log (stdout.ToString());
+
 				AssetDatabase.Refresh ();
 			} else {
-				Debug.LogError ("Gradle returns " + process.ExitCode);
+				stderr.Insert (0, "Gradle returns " + process.ExitCode + ": ");
+				Debug.LogError (stderr.ToString());
 			}
 		} else {
 			Debug.LogError ("Gradle couldn't be started from: " + process.StartInfo.WorkingDirectory);
